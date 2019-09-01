@@ -24,7 +24,7 @@ var headers = {
 var BASE_URL = "https://discordapp.com/api/v6";
 
 async function getJson(endpoint, data) {
-  res = await fetch(BASE_URL + endpoint, data);
+  res = await fetch(BASE_URL + "/" + endpoint, data);
   return res.json();
 }
 
