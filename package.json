@@ -1,0 +1,30 @@
+{
+  "name": "teatro",
+  "version": "1.0.0",
+  "description": "IdleRPG's vote handler",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kenvyra/teatro.git"
+  },
+  "keywords": [
+    "express",
+    "redis",
+    "discord"
+  ],
+  "author": "Jens Reidel",
+  "license": "AGPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/Kenvyra/teatro/issues"
+  },
+  "homepage": "https://github.com/Kenvyra/teatro#readme",
+  "dependencies": {
+    "express": "^4.17.1",
+    "node-fetch": "^2.6.0",
+    "pg": "^7.12.1",
+    "redis": "^2.8.0"
+  }
+}
