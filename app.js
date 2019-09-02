@@ -16,12 +16,13 @@ var pool = new Pool({
   port: config.databasePort
 });
 var app = express();
+app.use(express.json());
 var headers = {
   Authorization: `Bot ${config.token}`,
   "Content-Type": "application/json",
   "User-Agent": "DiscordVoteHandlerJS (0.7.0) IdleRPG"
 };
-var BASE_URL = "https://discordapp.com/api/v6";
+var BASE_URL = "https://discordapp.com/api/v6/";
 
 async function getJson(endpoint, data) {
   res = await fetch(BASE_URL + endpoint, data);
@@ -29,7 +30,8 @@ async function getJson(endpoint, data) {
 }
 
 app.post("/", async (req, res) => {
-  var user = req.data.user;
+  var user = req.body.user;
+  console.log(`Processing a vote for ${user}`);
   if (!user) return res.status(500).send("No user");
   var rand = Math.random();
   if (rand <= 0.001) {
@@ -63,6 +65,7 @@ app.post("/", async (req, res) => {
     }),
     headers: headers
   });
+  console.log("Done.");
 });
 
 app.listen(7666, function() {
