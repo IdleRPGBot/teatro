@@ -8,6 +8,7 @@ var config = require("./config.json");
 
 var redisClient = redis.createClient();
 var setAsync = promisify(redisClient.set).bind(redisClient);
+var getAsync = promisify(redisClient.get).bind(redisClient);)
 var pool = new Pool({
   user: config.databaseUser,
   host: config.databaseHost,
@@ -20,7 +21,7 @@ app.use(express.json());
 var headers = {
   Authorization: `Bot ${config.token}`,
   "Content-Type": "application/json",
-  "User-Agent": "DiscordVoteHandlerJS (0.7.0) IdleRPG"
+  "User-Agent": "DiscordVoteHandlerJS (0.8.0) IdleRPG"
 };
 var BASE_URL = "https://discordapp.com/api/v6/";
 
@@ -32,6 +33,10 @@ async function getJson(endpoint, data) {
 app.post("/", async (req, res) => {
   var user = req.body.user;
   console.log(`Processing a vote for ${user}`);
+  await getAsync(`cd:${user}:vote`, function(err, reply) {
+    var active_cd = reply;
+  });
+  if (active_cd !== null) return res.status(429).send("User on cooldown");
   if (!user) return res.status(500).send("No user");
   var rand = Math.random();
   if (rand <= 0.001) {
