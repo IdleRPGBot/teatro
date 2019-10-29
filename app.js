@@ -8,7 +8,7 @@ var config = require("./config.json");
 
 var redisClient = redis.createClient();
 var setAsync = promisify(redisClient.set).bind(redisClient);
-var getAsync = promisify(redisClient.get).bind(redisClient);)
+var getAsync = promisify(redisClient.get).bind(redisClient);
 var pool = new Pool({
   user: config.databaseUser,
   host: config.databaseHost,
