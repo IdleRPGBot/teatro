@@ -28,7 +28,9 @@ async function getJson(endpoint, data) {
   res = await fetch(BASE_URL + endpoint, data);
   return res.json();
 }
-
+app.get("/", async (req, res) => {
+  res.send("1");
+});
 app.post("/", async (req, res) => {
   var user = req.body.user;
   console.log(`Processing a vote for ${user}`);
