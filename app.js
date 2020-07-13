@@ -8,6 +8,7 @@ var config = require("./config.json");
 
 var redisClient = redis.createClient();
 var setAsync = promisify(redisClient.set).bind(redisClient);
+var getAsync = promisify(redisClient.get).bind(redisClient);
 var pool = new Pool({
   user: config.databaseUser,
   host: config.databaseHost,
@@ -52,6 +53,12 @@ app.post("/", async (req, res) => {
     [user]
   );
   await setAsync(`cd:${user}:vote`, "vote", "EX", 43200);
+  var val = await getAsync(`profilecache:${user}`);
+  if (val) {
+    var parsed = JSON.parse(val);
+    parsed[`crates_${rarity}`] = parsed[`crates_${rarity}`] + 1;
+    await setAsync(`profilecache:${user}`, JSON.stringify(parsed));
+  }
   var json = await getJson("users/@me/channels", {
     method: "POST",
     body: JSON.stringify({ recipients: [user] }),
