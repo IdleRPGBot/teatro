@@ -58,7 +58,7 @@ app.post("/", async (req, res) => {
   if (val) {
     var parsed = JSONbig.parse(val);
     parsed[`crates_${rarity}`] = parsed[`crates_${rarity}`] + 1;
-    await setAsync(`profilecache:${user}`, JSON.stringify(parsed));
+    await setAsync(`profilecache:${user}`, JSONbig.stringify(parsed));
   }
   var json = await getJson("users/@me/channels", {
     method: "POST",
