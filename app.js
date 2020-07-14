@@ -3,6 +3,7 @@ var redis = require("redis");
 var Pool = require("pg").Pool;
 var { promisify } = require("util");
 var fetch = require("node-fetch");
+var JSONbig = require("json-bigint");
 
 var config = require("./config.json");
 
@@ -14,14 +15,14 @@ var pool = new Pool({
   host: config.databaseHost,
   database: config.databaseName,
   password: config.databasePassword,
-  port: config.databasePort
+  port: config.databasePort,
 });
 var app = express();
 app.use(express.json());
 var headers = {
   Authorization: `Bot ${config.token}`,
   "Content-Type": "application/json",
-  "User-Agent": "DiscordVoteHandlerJS (0.7.0) IdleRPG"
+  "User-Agent": "DiscordVoteHandlerJS (0.7.0) IdleRPG",
 };
 var BASE_URL = "https://discordapp.com/api/v6/";
 
@@ -55,28 +56,28 @@ app.post("/", async (req, res) => {
   await setAsync(`cd:${user}:vote`, "vote", "EX", 43200);
   var val = await getAsync(`profilecache:${user}`);
   if (val) {
-    var parsed = JSON.parse(val);
+    var parsed = JSONbig.parse(val);
     parsed[`crates_${rarity}`] = parsed[`crates_${rarity}`] + 1;
     await setAsync(`profilecache:${user}`, JSON.stringify(parsed));
   }
   var json = await getJson("users/@me/channels", {
     method: "POST",
-    body: JSON.stringify({ recipients: [user] }),
-    headers: headers
+    body: JSONbig.stringify({ recipients: [user] }),
+    headers: headers,
   });
   var id = json.id;
   await getJson(`channels/${id}/messages`, {
     method: "POST",
-    body: JSON.stringify({
+    body: JSONbig.stringify({
       content: `Thank you for the upvote! You received a ${rarity} crate!`,
       nonce: user,
-      tts: false
+      tts: false,
     }),
-    headers: headers
+    headers: headers,
   });
   console.log("Done.");
 });
 
-app.listen(7666, function() {
+app.listen(7666, function () {
   console.log("Votehandler running on port 7666");
 });
