@@ -24,7 +24,7 @@
   "dependencies": {
     "express": "^4.17.1",
     "json-bigint": "^1.0.0",
-    "node-fetch": "^2.6.0",
+    "node-fetch": "^2.6.1",
     "pg": "^8.3.0",
     "redis": "^3.0.2"
   }
