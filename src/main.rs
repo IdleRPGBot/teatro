@@ -1,5 +1,5 @@
 use actix_web::{
-    middleware, post,
+    get, middleware, post,
     web::{Data, Json},
     App, HttpResponse, HttpServer,
 };
@@ -162,6 +162,11 @@ async fn handle_vote(
         .unwrap();
 }
 
+#[get("/")]
+async fn metrics() -> HttpResponse {
+    HttpResponse::Ok().body("1")
+}
+
 #[actix_web::main]
 async fn main() -> IoResult<()> {
     set_var("RUST_LOG", "actix_web=debug,actix_server=info");
@@ -198,6 +203,7 @@ async fn main() -> IoResult<()> {
             })
             .service(top_gg)
             .service(dbl)
+            .service(metrics)
     })
     .bind("0.0.0.0:7666")?
     .run()
