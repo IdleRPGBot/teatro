@@ -167,7 +167,7 @@ async fn main() -> IoResult<()> {
     set_var("RUST_LOG", "actix_web=debug,actix_server=info");
     env_logger::init();
 
-    let manager = RedisConnectionManager::new("redis://localhost").unwrap();
+    let manager = RedisConnectionManager::new("redis://127.0.0.1:6379").unwrap();
     let pool = RedisPool::new(bb8::Pool::builder().build(manager).await.unwrap());
 
     let pgmanager = PostgresConnectionManager::new(
