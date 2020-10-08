@@ -72,7 +72,7 @@ async fn top_gg(
     session: Data<Client>,
 ) -> HttpResponse {
     let user = req.user.0;
-    handle_vote(redis_pool, pg_pool, session, user).await;
+    handle_vote(redis_pool, pg_pool, session, user, "topgg-vote", 43200).await;
     HttpResponse::Ok().finish()
 }
 
@@ -84,7 +84,7 @@ async fn dbl(
     session: Data<Client>,
 ) -> HttpResponse {
     let user = req.id.0;
-    handle_vote(redis_pool, pg_pool, session, user).await;
+    handle_vote(redis_pool, pg_pool, session, user, "dbl-vote", 86400).await;
     HttpResponse::Ok().finish()
 }
 
@@ -93,6 +93,8 @@ async fn handle_vote(
     pg_pool: PgPool,
     session: Data<Client>,
     user: i64,
+    redis_key: &str,
+    timer: usize,
 ) {
     let mut redis_conn = redis_pool.get().await.unwrap();
     let redis_conn = redis_conn.as_mut().unwrap();
@@ -123,7 +125,7 @@ async fn handle_vote(
         .unwrap();
 
     let _: () = redis_conn
-        .set_ex(format!("cd:{}:vote", user), "vote", 43200)
+        .set_ex(format!("cd:{}:{}", user, redis_key), "vote", timer)
         .await
         .unwrap();
 
