@@ -1,7 +1,7 @@
 use actix_web::{
     client::{Client, ClientBuilder},
     get,
-    http::{HeaderName, HeaderValue},
+    http::{header, HeaderValue},
     middleware, post,
     web::{Data, Json},
     App, HttpResponse, HttpServer,
@@ -190,14 +190,21 @@ async fn main() -> IoResult<()> {
                 let client = ClientBuilder::new()
                     .no_default_headers()
                     .header(
-                        HeaderName::from_static("authorization"),
+                        header::AUTHORIZATION,
                         HeaderValue::from_str(&format!("Bot {}", token)).unwrap(),
                     )
                     .header(
-                        HeaderName::from_static("user-agent"),
+                        header::USER_AGENT,
                         HeaderValue::from_static("DiscordBotVoteHandlerRust (0.1.0) IdleRPG"),
                     )
-                    .header("content-type", HeaderValue::from_static("application/json"))
+                    .header(
+                        header::CONTENT_TYPE,
+                        HeaderValue::from_static("application/json"),
+                    )
+                    .header(
+                        header::ACCEPT_ENCODING,
+                        HeaderValue::from_static("identity"),
+                    )
                     .finish();
                 Ok::<Client, ()>(client)
             })
