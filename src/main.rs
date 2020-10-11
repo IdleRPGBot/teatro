@@ -140,7 +140,7 @@ async fn handle_vote(
 
     // JSON keys identical :P
     let resp: DblRequest = session
-        .post("https://discord.com/api/v7/users/@me/channels")
+        .post("https://discord.com/api/v8/users/@me/channels")
         .send_body(format!("{{\"recipient_id\": \"{}\"}}", user))
         .await
         .unwrap()
@@ -150,7 +150,7 @@ async fn handle_vote(
 
     session
         .post(&format!(
-            "https://discord.com/api/v7/channels/{}/messages",
+            "https://discord.com/api/v8/channels/{}/messages",
             resp.id.0
         ))
         .send_body(format!(
