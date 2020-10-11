@@ -190,14 +190,14 @@ async fn main() -> IoResult<()> {
                 let client = ClientBuilder::new()
                     .no_default_headers()
                     .header(
-                        HeaderName::from_static("Authorization"),
+                        HeaderName::from_static("authorization"),
                         HeaderValue::from_str(&format!("Bot {}", token)).unwrap(),
                     )
                     .header(
-                        HeaderName::from_static("User-Agent"),
+                        HeaderName::from_static("user-agent"),
                         HeaderValue::from_static("DiscordBotVoteHandlerRust (0.1.0) IdleRPG"),
                     )
-                    .header("Content-Type", HeaderValue::from_static("application/json"))
+                    .header("content-type", HeaderValue::from_static("application/json"))
                     .finish();
                 Ok::<Client, ()>(client)
             })
