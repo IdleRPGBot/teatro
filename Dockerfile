@@ -55,6 +55,5 @@ FROM docker.io/${FINAL_TARGET}/alpine:edge
 WORKDIR /teatro
 
 COPY --from=builder /teatro /usr/bin/teatro
-COPY assets /teatro/assets
 
 CMD /usr/bin/teatro
