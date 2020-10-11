@@ -6,7 +6,7 @@ edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
-actix-web = { version = "3", default-features = false, features = ["rustls"] }
+actix-web = { version = "3", features = ["rustls"] }
 bb8-redis = "0.5"
 bb8-postgres = "0.4"
 env_logger = "0.7"
