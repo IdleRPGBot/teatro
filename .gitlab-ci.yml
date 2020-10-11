@@ -1,20 +1,51 @@
-image: "quay.io/podman/stable"
+image: "quay.io/podman/testing"
 
 before_script:
   - podman --version
-  - curl -sSf https://sh.rustup.rs | sh -s -- -y
-  - source $HOME/.cargo/env
 
 stages:
   - Static analysis
-  - Test compile
+  - Compiles
+  - Publish latest to quay
 
 rustfmt:
   stage: Static analysis
   script:
+    - curl -sSf https://sh.rustup.rs | sh -s -- -y
+    - source $HOME/.cargo/env
     - cargo fmt -- --check
 
-test-compile:
-  stage: Test compile
+compile-amd64:
+  stage: Compiles
   script:
-    - podman build --runtime crun --storage-driver vfs -t teatro:latest .
+    - podman build --runtime crun --storage-driver vfs -t teatro:amd64 .
+    - if [ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ] && [ "$QUAY_USERNAME" != "" ] && [ "$QUAY_PASSWORD" != "" ]; then
+        podman --storage-driver vfs login quay.io --username $QUAY_USERNAME --password $QUAY_PASSWORD &&
+        podman --storage-driver vfs push teatro:amd64 quay.io/$QUAY_USERNAME/teatro:amd64;
+      fi
+
+compile-arm64:
+  stage: Compiles
+  script:
+    - podman build --runtime crun --storage-driver vfs --arch arm64
+        --build-arg RUST_TARGET="aarch64-unknown-linux-musl"
+        --build-arg MUSL_TARGET="aarch64-linux-musl"
+        --build-arg FINAL_TARGET="arm64v8"
+        -t teatro:arm64 .
+    - if [ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ] && [ "$QUAY_USERNAME" != "" ] && [ "$QUAY_PASSWORD" != "" ]; then
+        podman --storage-driver vfs login quay.io --username $QUAY_USERNAME --password $QUAY_PASSWORD &&
+        podman --storage-driver vfs push teatro:arm64 quay.io/$QUAY_USERNAME/teatro:arm64;
+      fi
+
+publish-latest:
+  stage: Publish latest to quay
+  only:
+    - current@Adrian/teatro
+  script:
+    - podman --storage-driver vfs login quay.io --username $QUAY_USERNAME --password $QUAY_PASSWORD
+    - podman --storage-driver vfs manifest create teatro:latest
+    - podman --storage-driver vfs pull quay.io/$QUAY_USERNAME/teatro:arm64
+    - podman --storage-driver vfs pull quay.io/$QUAY_USERNAME/teatro:amd64
+    - podman --storage-driver vfs manifest add teatro:latest teatro:amd64
+    - podman --storage-driver vfs manifest add teatro:latest teatro:arm64
+    - podman --storage-driver vfs manifest push teatro:latest docker://quay.io/$QUAY_USERNAME/teatro:latest

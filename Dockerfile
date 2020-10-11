@@ -1,32 +1,60 @@
-FROM docker.io/library/alpine:edge AS builder
+# Rust syntax target, either x86_64-unknown-linux-musl, aarch64-unknown-linux-musl, arm-unknown-linux-musleabi etc.
+ARG RUST_TARGET="x86_64-unknown-linux-musl"
+# Musl target, either x86_64-linux-musl, aarch64-linux-musl, arm-linux-musleabi, etc.
+ARG MUSL_TARGET="x86_64-linux-musl"
+# This ONLY works with defaults which is rather annoying
+# but better than nothing
+# Uses docker's own naming for architectures
+# e.g. x86_64 -> amd64, aarch64 -> arm64v8, arm -> arm32v7
+ARG FINAL_TARGET="amd64"
 
-RUN apk add --no-cache curl clang gcc musl-dev lld && \
+FROM docker.io/library/alpine:edge AS builder
+ARG MUSL_TARGET
+ARG RUST_TARGET
+
+RUN apk upgrade && \
+    apk add curl gcc musl-dev && \
     curl -sSf https://sh.rustup.rs | sh -s -- --profile minimal --default-toolchain nightly -y
 
-ENV CC clang
-ENV CFLAGS "-I/usr/lib/gcc/x86_64-alpine-linux-musl/10.2.0/ -L/usr/lib/gcc/x86_64-alpine-linux-musl/10.2.0/"
+RUN source $HOME/.cargo/env && \
+    if [ "$RUST_TARGET" != $(rustup target list --installed) ]; then \
+        rustup target add $RUST_TARGET && \
+        curl -L "https://musl.cc/$MUSL_TARGET-cross.tgz" -o /toolchain.tgz && \
+        tar xf toolchain.tgz && \
+        ln -s "/$MUSL_TARGET-cross/bin/$MUSL_TARGET-gcc" "/usr/bin/$MUSL_TARGET-gcc" && \
+        ln -s "/$MUSL_TARGET-cross/bin/$MUSL_TARGET-ld" "/usr/bin/$MUSL_TARGET-ld" && \
+        ln -s "/$MUSL_TARGET-cross/bin/$MUSL_TARGET-strip" "/usr/bin/actual-strip"; \
+    else \
+        echo "skipping toolchain as we are native" && \
+        ln -s /usr/bin/strip /usr/bin/actual-strip && \
+        apk add lld; \
+    fi
 
 WORKDIR /build
-COPY . .
 
-RUN set -ex && \
-    rm /usr/bin/ld && \
-    rm /usr/bin/cc && \
-    ln -s /usr/bin/lld /usr/bin/ld && \
-    ln -s /usr/bin/clang /usr/bin/cc && \
-    ln -s /usr/lib/gcc/x86_64-alpine-linux-musl/10.2.0/crtbeginS.o /usr/lib/crtbeginS.o && \
-    ln -s /usr/lib/gcc/x86_64-alpine-linux-musl/10.2.0/crtendS.o /usr/lib/crtendS.o && \
-    source $HOME/.cargo/env && \
-    cargo build --release && \
-    strip /build/target/release/teatro
+COPY Cargo.toml Cargo.lock ./
+COPY .cargo ./.cargo/
 
-FROM docker.io/library/alpine:edge
+RUN mkdir src/
+RUN echo 'fn main() {}' > ./src/main.rs
+RUN source $HOME/.cargo/env && \
+    cargo build --release \
+        --target="$RUST_TARGET"
 
-RUN adduser -S teatro
+RUN rm -f target/$RUST_TARGET/release/deps/teatro*
+COPY ./src ./src
 
-USER teatro
+RUN source $HOME/.cargo/env && \
+    cargo build --release \
+        --target="$RUST_TARGET" && \
+    cp target/$RUST_TARGET/release/teatro /teatro && \
+    actual-strip /teatro
+
+FROM docker.io/${FINAL_TARGET}/alpine:edge
+
 WORKDIR /teatro
 
-COPY --from=builder /build/target/release/teatro /teatro/run
+COPY --from=builder /teatro /usr/bin/teatro
+COPY assets /teatro/assets
 
-CMD /teatro/run
+CMD /usr/bin/teatro
