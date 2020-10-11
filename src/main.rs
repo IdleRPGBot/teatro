@@ -1,5 +1,8 @@
 use actix_web::{
-    get, middleware, post,
+    client::{Client, ClientBuilder},
+    get,
+    http::{HeaderName, HeaderValue},
+    middleware, post,
     web::{Data, Json},
     App, HttpResponse, HttpServer,
 };
@@ -9,10 +12,6 @@ use bb8_postgres::{
 };
 use bb8_redis::{bb8, redis::AsyncCommands, RedisConnectionManager, RedisPool};
 use rand::{prelude::Rng, thread_rng};
-use reqwest::{
-    header::{HeaderMap, HeaderValue},
-    Client,
-};
 use serde::Deserialize;
 use serde_json::{from_slice, to_vec, Value};
 
@@ -142,8 +141,7 @@ async fn handle_vote(
     // JSON keys identical :P
     let resp: DblRequest = session
         .post("https://discord.com/api/v7/users/@me/channels")
-        .body(format!("{{\"recipient_id\": \"{}\"}}", user))
-        .send()
+        .send_body(format!("{{\"recipient_id\": \"{}\"}}", user))
         .await
         .unwrap()
         .json()
@@ -155,11 +153,10 @@ async fn handle_vote(
             "https://discord.com/api/v7/channels/{}/messages",
             resp.id.0
         ))
-        .body(format!(
+        .send_body(format!(
             "{{\"content\":\"Thank you for the upvote! You received a {} crate!\"}}",
             rarity_name
         ))
-        .send()
         .await
         .unwrap();
 }
@@ -190,17 +187,18 @@ async fn main() -> IoResult<()> {
             .data(pgpool.clone())
             .data_factory(|| async {
                 let token = var("DISCORD_TOKEN").unwrap();
-                let mut headers = HeaderMap::new();
-                headers.insert(
-                    "Authorization",
-                    HeaderValue::from_str(&format!("Bot {}", token)).unwrap(),
-                );
-                headers.insert(
-                    "User-Agent",
-                    HeaderValue::from_static("DiscordBotVoteHandlerRust (0.1.0) IdleRPG"),
-                );
-                headers.insert("Content-Type", HeaderValue::from_static("application/json"));
-                let client = Client::builder().default_headers(headers).build().unwrap();
+                let client = ClientBuilder::new()
+                    .no_default_headers()
+                    .header(
+                        HeaderName::from_static("Authorization"),
+                        HeaderValue::from_str(&format!("Bot {}", token)).unwrap(),
+                    )
+                    .header(
+                        HeaderName::from_static("User-Agent"),
+                        HeaderValue::from_static("DiscordBotVoteHandlerRust (0.1.0) IdleRPG"),
+                    )
+                    .header("Content-Type", HeaderValue::from_static("application/json"))
+                    .finish();
                 Ok::<Client, ()>(client)
             })
             .service(top_gg)
