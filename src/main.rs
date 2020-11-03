@@ -10,7 +10,7 @@ use bb8_postgres::{
     tokio_postgres::{config::Config, NoTls},
     PostgresConnectionManager,
 };
-use bb8_redis::{bb8, redis::AsyncCommands, RedisConnectionManager, RedisPool};
+use bb8_redis::{bb8, redis::AsyncCommands, RedisConnectionManager};
 use rand::{prelude::Rng, thread_rng};
 use serde::Deserialize;
 use serde_json::{from_slice, to_vec, Value};
@@ -22,6 +22,7 @@ use std::str::FromStr;
 mod id;
 
 type PgPool = Data<bb8::Pool<PostgresConnectionManager<NoTls>>>;
+type RedisPool = Data<bb8::Pool<RedisConnectionManager>>;
 
 enum CrateRarity {
     Common,
@@ -66,7 +67,7 @@ struct DblRequest {
 #[post("/topgg")]
 async fn top_gg(
     req: Json<TopGGRequest>,
-    redis_pool: Data<RedisPool>,
+    redis_pool: RedisPool,
     pg_pool: PgPool,
     session: Data<Client>,
 ) -> HttpResponse {
@@ -78,7 +79,7 @@ async fn top_gg(
 #[post("/dbl")]
 async fn dbl(
     req: Json<DblRequest>,
-    redis_pool: Data<RedisPool>,
+    redis_pool: RedisPool,
     pg_pool: PgPool,
     session: Data<Client>,
 ) -> HttpResponse {
@@ -88,7 +89,7 @@ async fn dbl(
 }
 
 async fn handle_vote(
-    redis_pool: Data<RedisPool>,
+    redis_pool: RedisPool,
     pg_pool: PgPool,
     session: Data<Client>,
     user: i64,
@@ -96,7 +97,6 @@ async fn handle_vote(
     timer: usize,
 ) {
     let mut redis_conn = redis_pool.get().await.unwrap();
-    let redis_conn = redis_conn.as_mut().unwrap();
     let pg_conn = pg_pool.get().await.unwrap();
 
     let mut rng = thread_rng();
@@ -171,43 +171,38 @@ async fn main() -> IoResult<()> {
     set_var("RUST_LOG", "actix_web=debug,actix_server=info");
     env_logger::init();
 
-    let manager = RedisConnectionManager::new("redis://127.0.0.1:6379").unwrap();
-    let pool = RedisPool::new(bb8::Pool::builder().build(manager).await.unwrap());
+    let redis_manager = RedisConnectionManager::new("redis://127.0.0.1:6379").unwrap();
+    let redis_pool = bb8::Pool::builder().build(redis_manager).await.unwrap();
 
-    let pgmanager = PostgresConnectionManager::new(
+    let pg_manager = PostgresConnectionManager::new(
         Config::from_str(&var("DATABASE_URI").unwrap()).unwrap(),
         NoTls,
     );
-    let pgpool = bb8::Pool::builder().build(pgmanager).await.unwrap();
+    let pg_pool = bb8::Pool::builder().build(pg_manager).await.unwrap();
 
     HttpServer::new(move || {
+        let token = var("DISCORD_TOKEN").unwrap();
+        let client = ClientBuilder::new()
+            .no_default_headers()
+            .header(
+                header::AUTHORIZATION,
+                HeaderValue::from_str(&format!("Bot {}", token)).unwrap(),
+            )
+            .header(
+                header::USER_AGENT,
+                HeaderValue::from_static("DiscordBotVoteHandlerRust (0.1.0) IdleRPG"),
+            )
+            .header(
+                header::CONTENT_TYPE,
+                HeaderValue::from_static("application/json"),
+            )
+            .finish();
+
         App::new()
             .wrap(middleware::Logger::default())
-            .data(pool.clone())
-            .data(pgpool.clone())
-            .data_factory(|| async {
-                let token = var("DISCORD_TOKEN").unwrap();
-                let client = ClientBuilder::new()
-                    .no_default_headers()
-                    .header(
-                        header::AUTHORIZATION,
-                        HeaderValue::from_str(&format!("Bot {}", token)).unwrap(),
-                    )
-                    .header(
-                        header::USER_AGENT,
-                        HeaderValue::from_static("DiscordBotVoteHandlerRust (0.1.0) IdleRPG"),
-                    )
-                    .header(
-                        header::CONTENT_TYPE,
-                        HeaderValue::from_static("application/json"),
-                    )
-                    .header(
-                        header::ACCEPT_ENCODING,
-                        HeaderValue::from_static("identity"),
-                    )
-                    .finish();
-                Ok::<Client, ()>(client)
-            })
+            .data(redis_pool.clone())
+            .data(pg_pool.clone())
+            .data(client)
             .service(top_gg)
             .service(dbl)
             .service(metrics)
