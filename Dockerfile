@@ -2,8 +2,9 @@
 ARG RUST_TARGET="x86_64-unknown-linux-musl"
 # Musl target, either x86_64-linux-musl, aarch64-linux-musl, arm-linux-musleabi, etc.
 ARG MUSL_TARGET="x86_64-linux-musl"
-# This ONLY works with defaults which is rather annoying
-# but better than nothing
+# dumb-init architecture used by Alpine
+# Uses Kernel Naming (aarch64, armv7, x86_64, s390x, ppc64le)
+ARG DUMB_TARGET="x86_64"
 # Uses docker's own naming for architectures
 # e.g. x86_64 -> amd64, aarch64 -> arm64v8, arm -> arm32v7
 ARG FINAL_TARGET="amd64"
@@ -50,10 +51,23 @@ RUN source $HOME/.cargo/env && \
     cp target/$RUST_TARGET/release/teatro /teatro && \
     actual-strip /teatro
 
+FROM docker.io/library/alpine:edge AS dumb-init
+ARG DUMB_TARGET
+
+RUN apk update && \
+    VERSION=$(apk search dumb-init) && \
+    mkdir out && \
+    cd out && \
+    wget "https://dl-cdn.alpinelinux.org/alpine/edge/community/$DUMB_TARGET/$VERSION.apk" -O dumb-init.apk && \
+    tar xf dumb-init.apk && \
+    mv usr/bin/dumb-init /dumb-init
+
 FROM docker.io/${FINAL_TARGET}/alpine:edge
 
 WORKDIR /teatro
 
-COPY --from=builder /teatro /usr/bin/teatro
+COPY --from=dumb-init /dumb-init /teatro/dumb-init
+COPY --from=builder /teatro /teatro/teatro
 
-CMD /usr/bin/teatro
+ENTRYPOINT ["./dumb-init", "--"]
+CMD ["./teatro"]
