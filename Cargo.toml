@@ -16,7 +16,12 @@ log = "0.4"
 rand = "0.8"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1.0", default-features = false, features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.2", default-features = false, features = ["macros", "rt-multi-thread"] }
 
 [profile.release]
-lto = "thin"
+codegen-units = 1
+debug = false
+incremental = false
+lto = true
+opt-level = 3
+panic = "abort"
