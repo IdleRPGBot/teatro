@@ -3,7 +3,7 @@ ARG RUST_TARGET="x86_64-unknown-linux-musl"
 # Musl target, either x86_64-linux-musl, aarch64-linux-musl, arm-linux-musleabi, etc.
 ARG MUSL_TARGET="x86_64-linux-musl"
 
-FROM docker.io/library/alpine:edge AS builder
+FROM docker.io/amd64/alpine:edge AS builder
 ARG MUSL_TARGET
 ARG RUST_TARGET
 
