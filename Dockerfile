@@ -2,12 +2,6 @@
 ARG RUST_TARGET="x86_64-unknown-linux-musl"
 # Musl target, either x86_64-linux-musl, aarch64-linux-musl, arm-linux-musleabi, etc.
 ARG MUSL_TARGET="x86_64-linux-musl"
-# dumb-init architecture used by Alpine
-# Uses Kernel Naming (aarch64, armv7, x86_64, s390x, ppc64le)
-ARG DUMB_TARGET="x86_64"
-# Uses docker's own naming for architectures
-# e.g. x86_64 -> amd64, aarch64 -> arm64v8, arm -> arm32v7
-ARG FINAL_TARGET="amd64"
 
 FROM docker.io/library/alpine:edge AS builder
 ARG MUSL_TARGET
@@ -15,7 +9,7 @@ ARG RUST_TARGET
 
 RUN apk upgrade && \
     apk add curl gcc musl-dev && \
-    curl -sSf https://sh.rustup.rs | sh -s -- --profile minimal --default-toolchain nightly -y
+    curl -sSf https://sh.rustup.rs | sh -s -- --profile minimal --default-toolchain nightly --component rust-src -y
 
 RUN source $HOME/.cargo/env && \
     if [ "$RUST_TARGET" != $(rustup target list --installed) ]; then \
@@ -27,8 +21,7 @@ RUN source $HOME/.cargo/env && \
         ln -s "/$MUSL_TARGET-cross/bin/$MUSL_TARGET-strip" "/usr/bin/actual-strip"; \
     else \
         echo "skipping toolchain as we are native" && \
-        ln -s /usr/bin/strip /usr/bin/actual-strip && \
-        apk add lld; \
+        ln -s /usr/bin/strip /usr/bin/actual-strip; \
     fi
 
 WORKDIR /build
@@ -51,23 +44,8 @@ RUN source $HOME/.cargo/env && \
     cp target/$RUST_TARGET/release/teatro /teatro && \
     actual-strip /teatro
 
-FROM docker.io/library/alpine:edge AS dumb-init
-ARG DUMB_TARGET
+FROM scratch
 
-RUN apk update && \
-    VERSION=$(apk search dumb-init) && \
-    mkdir out && \
-    cd out && \
-    wget "https://dl-cdn.alpinelinux.org/alpine/edge/community/$DUMB_TARGET/$VERSION.apk" -O dumb-init.apk && \
-    tar xf dumb-init.apk && \
-    mv usr/bin/dumb-init /dumb-init
+COPY --from=builder /teatro /teatro
 
-FROM docker.io/${FINAL_TARGET}/alpine:edge
-
-WORKDIR /teatro
-
-COPY --from=dumb-init /dumb-init /teatro/dumb-init
-COPY --from=builder /teatro /teatro/teatro
-
-ENTRYPOINT ["./dumb-init", "--"]
 CMD ["./teatro"]

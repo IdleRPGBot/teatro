@@ -10,12 +10,11 @@ use hyper::{
     service::{make_service_fn, service_fn},
     Body, Client, Method, Request, Response, Server, StatusCode,
 };
-use hyper_rustls::HttpsConnector;
 use lazy_static::lazy_static;
+use libc::{c_int, sighandler_t, signal, SIGINT, SIGTERM};
 use log::{error, info};
 use rand::{prelude::Rng, thread_rng};
 use serde::Deserialize;
-use serde_json::{from_slice, to_vec, Value};
 
 use std::{
     env::{set_var, var},
@@ -43,7 +42,7 @@ struct DblRequest {
 async fn handle_vote(
     redis_pool: RedisPool,
     pg_pool: PgPool,
-    session: Client<HttpsConnector<HttpConnector>>,
+    session: Client<HttpConnector>,
     user: String,
     redis_key: &str,
     timer: usize,
@@ -81,19 +80,9 @@ async fn handle_vote(
         .await
         .unwrap();
 
-    let profile_key = format!("profilecache:{}", user);
-    let cache_data: Vec<u8> = redis_conn.get(&profile_key).await.unwrap();
-    if !cache_data.is_empty() {
-        let mut cache_parsed: Value = from_slice(&cache_data).unwrap();
-        cache_parsed[&rarity_string] =
-            Value::from(cache_parsed[&rarity_string].as_u64().unwrap() + 1);
-        let cache_new = to_vec(&cache_parsed).unwrap();
-        let _: () = redis_conn.set(profile_key, cache_new).await.unwrap();
-    }
-
     let mut req = Request::builder()
         .method("POST")
-        .uri("https://discord.com/api/v8/users/@me/channels")
+        .uri("http://localhost:5113/api/v8/users/@me/channels")
         .body(Body::from(format!("{{\"recipient_id\": \"{}\"}}", user)))
         .unwrap();
     let headers = req.headers_mut();
@@ -107,7 +96,7 @@ async fn handle_vote(
     let mut req = Request::builder()
         .method("POST")
         .uri(format!(
-            "https://discord.com/api/v8/channels/{}/messages",
+            "http://localhost:5113/api/v8/channels/{}/messages",
             data.id
         ))
         .body(Body::from(format!(
@@ -124,7 +113,7 @@ async fn handle(
     req: Request<Body>,
     pg_pool: PgPool,
     redis_pool: RedisPool,
-    client: Client<HttpsConnector<HttpConnector>>,
+    client: Client<HttpConnector>,
 ) -> Result<Response<Body>> {
     info!("{} request to {}", req.method(), req.uri().path());
 
@@ -134,13 +123,13 @@ async fn handle(
             let whole_body = aggregate(req).await?;
             let data: TopGGRequest = serde_json::from_reader(whole_body.reader())?;
             handle_vote(redis_pool, pg_pool, client, data.user, "topgg-vote", 43200).await;
-            Ok(Response::new(Body::from("")))
+            Ok(Response::new(Body::empty()))
         }
         (&Method::POST, "/dbl") => {
             let whole_body = aggregate(req).await?;
             let data: DblRequest = serde_json::from_reader(whole_body.reader())?;
             handle_vote(redis_pool, pg_pool, client, data.id, "dbl-vote", 43200).await;
-            Ok(Response::new(Body::from("")))
+            Ok(Response::new(Body::empty()))
         }
         _ => Ok(Response::builder()
             .status(StatusCode::NOT_FOUND)
@@ -153,7 +142,7 @@ async fn serve(
     req: Request<Body>,
     pg_pool: PgPool,
     redis_pool: RedisPool,
-    client: Client<HttpsConnector<HttpConnector>>,
+    client: Client<HttpConnector>,
 ) -> Result<Response<Body>> {
     match handle(req, pg_pool, redis_pool, client).await {
         Ok(resp) => Ok(resp),
@@ -187,12 +176,22 @@ lazy_static! {
     };
 }
 
+pub extern "C" fn handler(_: c_int) {
+    std::process::exit(0);
+}
+
+unsafe fn set_os_handlers() {
+    signal(SIGINT, handler as extern "C" fn(_) as sighandler_t);
+    signal(SIGTERM, handler as extern "C" fn(_) as sighandler_t);
+}
+
 #[tokio::main]
 async fn main() -> IoResult<()> {
+    unsafe { set_os_handlers() };
+
     set_var("RUST_LOG", "info");
     env_logger::init();
-    let https = HttpsConnector::with_native_roots();
-    let client = Client::builder().build(https);
+    let client = Client::new();
 
     let redis_manager = RedisConnectionManager::new("redis://127.0.0.1:6379").unwrap();
     let redis_pool = bb8::Pool::builder().build(redis_manager).await.unwrap();
