@@ -45,6 +45,6 @@ publish-latest:
     - podman --storage-driver vfs manifest create teatro:latest
     - podman --storage-driver vfs pull quay.io/$QUAY_USERNAME/teatro:arm64
     - podman --storage-driver vfs pull quay.io/$QUAY_USERNAME/teatro:amd64
-    - podman --storage-driver vfs manifest add teatro:latest teatro:amd64
-    - podman --storage-driver vfs manifest add teatro:latest teatro:arm64
+    - podman --storage-driver vfs manifest add teatro:latest quay.io/$QUAY_USERNAME/teatro:amd64
+    - podman --storage-driver vfs manifest add teatro:latest quay.io/$QUAY_USERNAME/teatro:arm64
     - podman --storage-driver vfs manifest push teatro:latest docker://quay.io/$QUAY_USERNAME/teatro:latest
