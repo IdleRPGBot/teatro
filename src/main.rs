@@ -46,9 +46,9 @@ async fn handle_vote(
     user: String,
     redis_key: &str,
     timer: usize,
-) {
-    let mut redis_conn = redis_pool.get().await.unwrap();
-    let pg_conn = pg_pool.get().await.unwrap();
+) -> Result<()> {
+    let mut redis_conn = redis_pool.get().await?;
+    let pg_conn = pg_pool.get().await?;
 
     let r = {
         let mut rng = thread_rng();
@@ -70,28 +70,25 @@ async fn handle_vote(
                 "UPDATE profile SET {0:?}={0:?}+1 WHERE \"user\"=$1;",
                 rarity_string
             ),
-            &[&user.parse::<i64>().unwrap()],
+            &[&user.parse::<i64>()?],
         )
-        .await
-        .unwrap();
+        .await?;
 
     let _: () = redis_conn
         .set_ex(format!("cd:{}:{}", user, redis_key), "vote", timer)
-        .await
-        .unwrap();
+        .await?;
 
     let mut req = Request::builder()
         .method("POST")
         .uri("http://localhost:5113/api/v8/users/@me/channels")
-        .body(Body::from(format!("{{\"recipient_id\": \"{}\"}}", user)))
-        .unwrap();
+        .body(Body::from(format!("{{\"recipient_id\": \"{}\"}}", user)))?;
     let headers = req.headers_mut();
     headers.extend(HEADERS.clone());
 
     // JSON keys identical :P
-    let resp = session.request(req).await.unwrap();
-    let body = aggregate(resp).await.unwrap();
-    let data: DblRequest = serde_json::from_reader(body.reader()).unwrap();
+    let resp = session.request(req).await?;
+    let body = aggregate(resp).await?;
+    let data: DblRequest = simd_json::from_reader(body.reader())?;
 
     let mut req = Request::builder()
         .method("POST")
@@ -102,11 +99,12 @@ async fn handle_vote(
         .body(Body::from(format!(
             "{{\"content\":\"Thank you for the upvote! You received a {} crate!\"}}",
             rarity_name
-        )))
-        .unwrap();
+        )))?;
     let headers = req.headers_mut();
     headers.extend(HEADERS.clone());
-    session.request(req).await.unwrap();
+    session.request(req).await?;
+
+    Ok(())
 }
 
 async fn handle(
@@ -121,14 +119,14 @@ async fn handle(
         (&Method::GET, "/") => Ok(Response::new(Body::from("1"))),
         (&Method::POST, "/topgg") => {
             let whole_body = aggregate(req).await?;
-            let data: TopGGRequest = serde_json::from_reader(whole_body.reader())?;
-            handle_vote(redis_pool, pg_pool, client, data.user, "topgg-vote", 43200).await;
+            let data: TopGGRequest = simd_json::from_reader(whole_body.reader())?;
+            handle_vote(redis_pool, pg_pool, client, data.user, "topgg-vote", 43200).await?;
             Ok(Response::new(Body::empty()))
         }
         (&Method::POST, "/dbl") => {
             let whole_body = aggregate(req).await?;
-            let data: DblRequest = serde_json::from_reader(whole_body.reader())?;
-            handle_vote(redis_pool, pg_pool, client, data.id, "dbl-vote", 43200).await;
+            let data: DblRequest = simd_json::from_reader(whole_body.reader())?;
+            handle_vote(redis_pool, pg_pool, client, data.id, "dbl-vote", 43200).await?;
             Ok(Response::new(Body::empty()))
         }
         _ => Ok(Response::builder()
